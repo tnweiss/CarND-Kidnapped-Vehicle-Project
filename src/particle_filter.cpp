@@ -22,6 +22,11 @@ using std::string;
 using std::vector;
 using std::normal_distribution;
 using std::numeric_limits;
+using std::uniform_real_distribution;
+using std::uniform_int_distribution;
+
+
+static std::default_random_engine gen;
 
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
@@ -34,15 +39,12 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    *   (and others in this file).
    */
   // completed with help from this lesson https://classroom.udacity.com/nanodegrees/nd013/parts/b9040951-b43f-4dd3-8b16-76e7b52f4d9d/modules/85ece059-1351-4599-bb2c-0095d6534c8c/lessons/e3981fd5-8266-43be-a497-a862af9187d4/concepts/226a0ca8-f66a-42d5-ac96-e37019fd6f15
-  num_particles = 50;  // TODO: Set the number of particles
+  num_particles = 100;  // TODO: Set the number of particles
   
   // Create normal distributions for x, y, and theta
   normal_distribution<double> dist_x(x, std[0]);
   normal_distribution<double> dist_y(y, std[1]);
   normal_distribution<double> dist_theta(theta, std[2]);
-  
-  // define random generator
-  std::default_random_engine gen;
   
   for (int i = 0; i < num_particles; i++) {
     // initialize the particle object
@@ -76,8 +78,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    *  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
-  // define random generator
-  std::default_random_engine gen;
   
   // Create normal distributions for x, y, and theta
   normal_distribution<double> nml_x(0, std_pos[0]);
@@ -150,7 +150,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
                                    const vector<LandmarkObs> &observations, 
                                    const Map &map_landmarks) {
   /**
-   * TODO: Update the weights of each particle using a mult-variate Gaussian 
+   * DONE: Update the weights of each particle using a mult-variate Gaussian 
    *   distribution. You can read more about this distribution here: 
    *   https://en.wikipedia.org/wiki/Multivariate_normal_distribution
    * NOTE: The observations are given in the VEHICLE'S coordinate system. 
@@ -240,7 +240,36 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
-
+  vector<double> weights;
+  
+  for(int i = 0; i < num_particles; i++) {
+    weights.push_back(particles[i].weight);
+  }
+  
+  // find the largest weight
+  double maxWeight = *max_element(weights.begin(), weights.end());
+  
+  uniform_real_distribution<double> distDouble(0.0, maxWeight);
+  uniform_int_distribution<int> distInt(0, num_particles - 1);
+  
+  int index = distInt(gen);
+  
+  double beta = 0.0;
+  
+  // https://classroom.udacity.com/nanodegrees/nd013/parts/b9040951-b43f-4dd3-8b16-76e7b52f4d9d/modules/85ece059-1351-4599-bb2c-0095d6534c8c/lessons/6ff7cfc9-35b4-497e-8913-3993ae7f2c04/concepts/487480820923
+  // "resampling wheel"
+  vector<Particle> newP;
+  for(int i = 0; i < num_particles; i++) {
+    beta += distDouble(gen) * 2.0;
+    
+    while( beta > weights[index]) {
+      beta -= weights[index];
+      index = (index + 1) % num_particles;
+    }
+    newP.push_back(particles[index]);
+  }
+  
+  particles = newP;
 }
 
 void ParticleFilter::SetAssociations(Particle& particle, 
@@ -252,6 +281,11 @@ void ParticleFilter::SetAssociations(Particle& particle,
   // associations: The landmark id that goes along with each listed association
   // sense_x: the associations x mapping already converted to world coordinates
   // sense_y: the associations y mapping already converted to world coordinates
+  //Clear the previous associations
+  particle.associations.clear();
+  particle.sense_x.clear();
+  particle.sense_y.clear();
+  
   particle.associations= associations;
   particle.sense_x = sense_x;
   particle.sense_y = sense_y;
