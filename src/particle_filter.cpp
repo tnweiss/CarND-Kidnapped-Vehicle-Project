@@ -20,6 +20,8 @@
 
 using std::string;
 using std::vector;
+using std::normal_distribution;
+
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
   /**
@@ -30,7 +32,37 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-  num_particles = 0;  // TODO: Set the number of particles
+  // completed with help from this lesson https://classroom.udacity.com/nanodegrees/nd013/parts/b9040951-b43f-4dd3-8b16-76e7b52f4d9d/modules/85ece059-1351-4599-bb2c-0095d6534c8c/lessons/e3981fd5-8266-43be-a497-a862af9187d4/concepts/226a0ca8-f66a-42d5-ac96-e37019fd6f15
+  num_particles = 50;  // TODO: Set the number of particles
+  
+  // Create normal distributions for x, y, and theta
+  normal_distribution<double> dist_x(x, std[0]);
+  normal_distribution<double> dist_y(y, std[1]);
+  normal_distribution<double> dist_theta(theta, std[2]);
+  
+  // define random generator
+  std::default_random_engine gen;
+  
+  for (int i = 0; i < num_particles; i++) {
+    // initialize the particle object
+    Particle particle;
+    
+    // set the id to the index in the array
+    particle.id = i;
+    
+    // generate random x, y, and theta samples
+    particle.x = dist_x(gen);
+    particle.y = dist_y(gen);
+    particle.theta = dist_theta(gen);
+    
+    // all particles have equal weight
+    particle.weight = 1.0;
+
+    // add the particle to the list of particles
+    particles.push_back(particle);
+  }
+  
+  is_initialized = true;
 
 }
 
@@ -43,6 +75,35 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    *  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
+  // define random generator
+  std::default_random_engine gen;
+  
+  // Create normal distributions for x, y, and theta
+  normal_distribution<double> nml_x(0, std_pos[0]);
+  normal_distribution<double> nml_y(0, std_pos[1]);
+  normal_distribution<double> nml_theta(0, std_pos[2]);
+  
+  for (int i = 0; i < num_particles; i++) {
+
+    // if the yaw rate is not significant enough (effectively 0) then we don't factor that into the new theta, x and y
+    if (fabs(yaw_rate) < 0.00001) {  
+      // multiply change in time (s) by veloctiy (m/s) times sin/cos to get the change in position with respect to that dimension
+      particles[i].x += velocity * delta_t * cos(particles[i].theta);
+      particles[i].y += velocity * delta_t * sin(particles[i].theta);
+    } 
+    else {
+      // factor in theta to the change in x and y https://classroom.udacity.com/nanodegrees/nd013/parts/b9040951-b43f-4dd3-8b16-76e7b52f4d9d/modules/85ece059-1351-4599-bb2c-0095d6534c8c/lessons/e3981fd5-8266-43be-a497-a862af9187d4/concepts/56d08bf5-8668-42e7-a718-1ef40d444259
+      particles[i].x += velocity / yaw_rate * (sin(particles[i].theta + yaw_rate * delta_t) - sin(particles[i].theta));
+      particles[i].y += velocity / yaw_rate * (cos(particles[i].theta) - cos(particles[i].theta + yaw_rate * delta_t));
+      // if the vehicle has turned we need to calculate the new theta to get the new angle 
+      particles[i].theta += yaw_rate * delta_t;
+    }
+
+    // add noise to the predictions
+    particles[i].x += nml_x(gen);
+    particles[i].y += nml_y(gen);
+    particles[i].theta += nml_theta(gen);
+  }
 
 }
 
